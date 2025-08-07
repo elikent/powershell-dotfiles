@@ -16,13 +16,13 @@ function private:Invoke-SetLocation {
 }
  
 function Set-LocationToDownloads {
-    private:Invoke-SetLocation -Path (Join-Path $env:USERPROFILE "Downloads")
+    private:Invoke-SetLocation -Path (Join-Path $HOME "Downloads")
 }
 function Set-LocationToPersonalProjects {
-    private:Invoke-SetLocation -Path $global:PersonalProjectsPath
+    private:Invoke-SetLocation -Path $global:ProjectTypeRoots.Personal
 }
 function Set-LocationToWorkProjects {
-    private:Invoke-SetLocation -Path $global:WorkProjectsPath
+    private:Invoke-SetLocation -Path $global:ProjectTypeRoots.Work
 }
 
 # A dynamic function to navigate to any project by name.
@@ -33,18 +33,9 @@ function Set-Project {
         [string]$ProjectName
     )
 
-    # Dynamically find all global variables ending in 'ProjectsPath' to use as search locations.
-    # An examply value of one of these variables is "D:\my-projects\personal"
-    # This makes the function automatically adapts to new project roots defined in the main profile.
-
-    # Create an array of all the global variables ending in 'ProjectsPath'.
-    $SearchPaths = Get-Variable -Scope Global -Name "*ProjectsPath" -ErrorAction SilentlyContinue |
-                   # Remove null or empty strings from the array 
-                   Select-Object -ExpandProperty Value |
-                   Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    # For each base path (eg ) in $SearchPaths, create a full path with BasePath ProjectName and check if it exists.
-    foreach ($BasePath in $SearchPaths) {
+    # Iterate over the configured project root directories defined in the main profile.
+    # This is more explicit and robust than searching for variables by name.
+    foreach ($BasePath in $global:ProjectTypeRoots.Values) {
         $FullPath = Join-Path -Path $BasePath -ChildPath $ProjectName
         if (Test-Path -Path $FullPath) {
             Set-Location -Path $FullPath
@@ -64,3 +55,23 @@ Set-Alias -Name "proj-w" -Value "Set-LocationToWorkProjects"
 Set-Alias -Name "go"     -Value "Set-Project"
 Set-Alias -Name "gco"    -Value "git checkout"
 Set-Alias -Name "gst"    -Value "git status"
+
+# --- Argument Completer for Set-Project ---
+# This block enables dynamic tab completion for the -ProjectName parameter of the Set-Project function.
+# When you type 'go <tab>', it will suggest project names found within your configured project roots.
+Register-ArgumentCompleter -CommandName 'Set-Project' -ParameterName 'ProjectName' -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+
+    # Collect the names of all subdirectories from each project root path.
+    $projectNames = foreach ($rootPath in $global:ProjectTypeRoots.Values) {
+        # Ensure the root path exists before trying to list items.
+        if (Test-Path $rootPath) {
+            Get-ChildItem -Path $rootPath -Directory | Select-Object -ExpandProperty Name
+        }
+    }
+
+    # Filter the collected names based on what the user has already typed and return them as completion results.
+    $projectNames | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
+}

@@ -5,7 +5,8 @@
 .DESCRIPTION
     Creates a new project directory with Git, a standard .gitignore,
     a Python virtual environment pinned to a specific version via pyenv,
-    and other optional setup steps.
+    and other optional setup steps, including creating a new private GitHub
+    repository via the 'gh' CLI.
 
 .PARAMETER ProjectName
     The name of the project folder to be created.
@@ -14,8 +15,9 @@
     The type of project, which determines the base directory.
     Must match a global '*ProjectsPath' variable name (e.g., 'Personal', 'Work').
 
-.PARAMETER GitHubRemoteUrl
-    Optional. The full git remote URL from GitHub to add as 'origin'.
+.PARAMETER GitHub
+    Optional. Specify 'public' or 'private' to create a new GitHub repo with an MIT license,
+    or provide a full remote URL (e.g., 'git@github.com:user/repo.git') to link an existing repo.
 
 .PARAMETER OpenInCode
     Optional. If present, opens the new project in Visual Studio Code upon completion.
@@ -31,7 +33,10 @@
     New-PyProject -ProjectName "MyWebApp" -ProjectType "Personal" -PythonVersion "3.11.4" -OpenInCode
 
 .EXAMPLE
-    New-PyProject -ProjectName "DataAnalysis" -ProjectType "Work" -GitHubRemoteUrl "git@github.com:user/repo.git"
+    New-PyProject -ProjectName "DataAnalysis" -ProjectType "Work" -GitHub "git@github.com:user/repo.git"
+
+.EXAMPLE
+    New-PyProject -ProjectName "MyCliTool" -ProjectType "Personal" -GitHub "private" -OpenInCode
 
 #>
 
@@ -79,8 +84,17 @@ function New-PyProject {
         })]
         [string]$ProjectType,
 
-        [Parameter(Mandatory = $false, HelpMessage = "The full git remote URL from GitHub.")]
-        [string]$GitHubRemoteUrl,
+        [Parameter(Mandatory = $false, HelpMessage = "Specify 'public', 'private' to create a new GitHub repo, or provide a full remote URL.")]
+        [ValidateScript({
+            $validInputs = @('public', 'private')
+            $urlPattern = '^(https|git)@github\.com[:/].+\.git$'
+            if (($_ -in $validInputs) -or ($_ -match $urlPattern)) {
+                $true
+            } else {
+                throw "Invalid value for -GitHub. Must be 'public', 'private', or a valid GitHub remote URL (e.g., 'git@github.com:user/repo.git')."
+            }
+        })]
+        [string]$GitHub,
 
         [Parameter(Mandatory = $false, HelpMessage = "If present, opens the new project in Visual Studio Code.")]
         [switch]$OpenInCode,
@@ -118,6 +132,10 @@ function New-PyProject {
     # --- Pre-flight Checks ---
     # Check to see if pyenv is installed
     $requiredCommands = @("git", "pyenv")
+    # Add 'gh' to required commands only if we are creating a new repo
+    if ($PSBoundParameters.ContainsKey('GitHub') -and $GitHub -in @('public', 'private')) {
+        $requiredCommands += "gh"
+    }
     foreach ($command in $requiredCommands) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
             Write-Error "The '$command' command was not found. Please ensure it is installed and in your PATH."
@@ -194,16 +212,24 @@ function New-PyProject {
     private:Invoke-CommandOrThrow -Command "git" -Arguments "add", "." -ErrorMessage "Failed to stage files with 'git add'."
     private:Invoke-CommandOrThrow -Command "git" -Arguments "commit", "-m", "'Initial commit: project structure and venv setup'" -ErrorMessage "Failed to create initial commit. Is your git user.name and user.email configured?"
 
-    if ($PSBoundParameters.ContainsKey('GitHubRemoteUrl')) {
-        Write-Host "-> Adding GitHub remote: $GitHubRemoteUrl"
-        private:Invoke-CommandOrThrow -Command "git" -Arguments "remote", "add", "origin", $GitHubRemoteUrl -ErrorMessage "Failed to add GitHub remote."
+    if ($PSBoundParameters.ContainsKey('GitHub')) {
+        if ($GitHub -in @('public', 'private')) {
+            Write-Host "-> Creating new $GitHub GitHub repository '$ProjectName' with MIT license and setting remote..."
+            # The 'gh' command will create the repo and add the 'origin' remote.
+            private:Invoke-CommandOrThrow -Command "gh" -Arguments "repo", "create", $ProjectName, "--$GitHub", "--license", "mit", "--source=.", "--remote=origin" -ErrorMessage "Failed to create GitHub repository with 'gh'. Is the GitHub CLI authenticated? (run 'gh auth login')"
+        }
+        else {
+            # The value is a URL, so we add it as a remote
+            Write-Host "-> Adding GitHub remote: $GitHub"
+            private:Invoke-CommandOrThrow -Command "git" -Arguments "remote", "add", "origin", $GitHub -ErrorMessage "Failed to add GitHub remote."
+        }
     }
 
     # --- Final Instructions ---
     Write-Host "`nProject '$ProjectName' created successfully!" -ForegroundColor Green
     Write-Host "Next steps:"
     Write-Host "1. Activate your venv: " -NoNewline; Write-Host ".\.venv\Scripts\Activate.ps1" -ForegroundColor Yellow
-    if ($PSBoundParameters.ContainsKey('GitHubRemoteUrl')) {
+    if ($PSBoundParameters.ContainsKey('GitHub')) {
         Write-Host "2. Push to GitHub: " -NoNewline; Write-Host "git push -u origin main" -ForegroundColor Yellow
     }
 
