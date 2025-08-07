@@ -78,7 +78,7 @@ function New-PyProject {
         [Parameter(Mandatory = $true, HelpMessage = "The name of the project folder.")]
         [string]$ProjectName,
 
-        [Parameter(Mandatory = $true, HelpMessage = "The project type (e.g., 'Personal', 'Work'). Must match a key in your $global:ProjectTypeRoots.")]
+        [Parameter(Mandatory = $true, HelpMessage = 'The project type (e.g., ''Personal'', ''Work''). Must match a key in your $global:ProjectTypeRoots.')]
         [ArgumentCompleter({
             param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
             $Script:AvailableProjectTypes | Where-Object { $_ -like "*$wordToComplete*" }
