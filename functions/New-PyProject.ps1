@@ -54,12 +54,19 @@ function private:Invoke-CommandOrThrow {
         [Parameter(Mandatory = $true)]
         [string]$ErrorMessage
     )
-    # calls command + args
-    & $Command $Arguments
-    # if last exit code was not 0, error thrown
-    if ($LASTEXITCODE -ne 0) {
-        # Using 'throw' creates a terminating error, stopping the script immediately.
-        throw "ERROR: $ErrorMessage (Command: '$Command $Arguments' failed)"
+    $stdErrFile = [System.IO.Path]::GetTempFileName()
+    try {
+        # Execute the command, redirecting the standard error stream (2) to a temporary file.
+        & $Command $Arguments 2> $stdErrFile
+        # if last exit code was not 0, error thrown
+        if ($LASTEXITCODE -ne 0) {
+            $stdErrOutput = Get-Content $stdErrFile | Out-String
+            # Using 'throw' creates a terminating error, stopping the script immediately.
+            throw "ERROR: $ErrorMessage`nDetails: $stdErrOutput"
+        }
+    }
+    finally {
+        Remove-Item $stdErrFile -ErrorAction SilentlyContinue
     }
 }
 
@@ -118,9 +125,8 @@ function New-PyProject {
     if ($PSBoundParameters.ContainsKey('Requirements')) {
         $resolvedRequirementsPath = Resolve-Path -LiteralPath $Requirements -ErrorAction SilentlyContinue
         if (-not $resolvedRequirementsPath) {
-            Write-Warning "Requirements file not found at '$Requirements'. Will skip dependency installation."
-            # Explicitly nullify to ensure the install step is skipped later
-            $resolvedRequirementsPath = $null
+            # Fail fast if the user specifies a requirements file that does not exist.
+            throw "ERROR: The specified requirements file could not be found at '$Requirements'."
         }
     }
 
