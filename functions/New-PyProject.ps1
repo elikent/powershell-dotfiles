@@ -166,7 +166,7 @@ function New-PyProject {
 
     # Copy the standard Python .gitignore file from the templates folder in $PSScriptRoot (root folder for PROFILE)
     $functionFile = (Get-Command New-PyProject).Source
-    $profileRoot = Split-Path -Path (Split-Path -Path $functionFile -Parent) -Parent # This line was corrected in a previous step, including it for context.
+    $profileRoot = Split-Path -Path (Split-Path -Path $functionFile -Parent) -Parent
     $GitignoreTemplatePath = Join-Path -Path $profileRoot -ChildPath "templates\.gitignore_python"
     if (Test-Path $GitignoreTemplatePath) {
         Copy-Item -Path $GitignoreTemplatePath -Destination .\.gitignore
