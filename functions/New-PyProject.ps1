@@ -106,11 +106,6 @@ function New-PyProject {
         [string]$Requirements
     )
 
-    # --- Configuration & Path Setup ---
-    # Construct the ProjectBaseDirName from $ProjectType then get path value from global variable.
-    $ProjectBaseDirVarName = $ProjectType + "ProjectsPath"
-    $ProjectsBaseDir = Get-Variable -Name $ProjectBaseDirVarName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
-
     if (-not $ProjectsBaseDir -or -not (Test-Path -Path $ProjectsBaseDir -PathType Container)) {
         Write-Error "Project base directory for type '$ProjectType' is not defined or does not exist. Ensure `$global:$ProjectBaseDirVarName is set correctly in your profile."
         return

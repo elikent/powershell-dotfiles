@@ -11,3 +11,5 @@
 # PowerShell module analysis cache
 PSModuleAnalysisCache/
 
+# User-defined module directory
+modules/
