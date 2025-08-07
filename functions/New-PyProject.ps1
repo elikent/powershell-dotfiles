@@ -12,8 +12,8 @@
     The name of the project folder to be created.
 
 .PARAMETER ProjectType
-    The type of project, which determines the base directory.
-    Must match a global '*ProjectsPath' variable name (e.g., 'Personal', 'Work').
+    The type of project, which determines the root directory.
+    Must match a key in the $global:ProjectTypeRoots hashtable (e.g., 'Personal', 'Work').
 
 .PARAMETER GitHub
     Optional. Specify 'public' or 'private' to create a new GitHub repo with an MIT license,
@@ -41,7 +41,7 @@
 #>
 
 # Script-scoped cache for available project types to avoid redundant lookups.
-$Script:AvailableProjectTypes = (Get-Variable -Scope Global -Name "*ProjectsPath" -ErrorAction SilentlyContinue).Name -replace 'ProjectsPath', ''
+$Script:AvailableProjectTypes = $global:ProjectTypeRoots.Keys
 
 # Internal helper function to execute external commands and throw a terminating error on failure.
 # This simplifies error handling in the main function body.
@@ -77,7 +77,7 @@ function New-PyProject {
         [Parameter(Mandatory = $true, HelpMessage = "The name of the project folder.")]
         [string]$ProjectName,
 
-        [Parameter(Mandatory = $true, HelpMessage = "The project type (e.g., 'Personal', 'Work'). Must match a configured *ProjectsPath global variable.")]
+        [Parameter(Mandatory = $true, HelpMessage = "The project type (e.g., 'Personal', 'Work'). Must match a key in your $global:ProjectTypeRoots.")]
         [ArgumentCompleter({
             param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
             $Script:AvailableProjectTypes | Where-Object { $_ -like "*$wordToComplete*" }
@@ -113,11 +113,15 @@ function New-PyProject {
         [string]$Requirements
     )
 
-    if (-not $ProjectsBaseDir -or -not (Test-Path -Path $ProjectsBaseDir -PathType Container)) {
-        Write-Error "Project base directory for type '$ProjectType' is not defined or does not exist. Ensure `$global:$ProjectBaseDirVarName is set correctly in your profile."
+    # --- Configuration & Path Setup ---
+    # Get the root directory for the specified project type.
+    $ProjectsRootDir = $global:ProjectTypeRoots[$ProjectType]
+
+    if (-not $ProjectsRootDir -or -not (Test-Path -Path $ProjectsRootDir -PathType Container)) {
+        Write-Error "Project root directory for type '$ProjectType' ('$ProjectsRootDir') is not defined or does not exist. Ensure the path in `$global:ProjectTypeRoots is correct."
         return
     }
-    $NewProjectPath = Join-Path -Path $ProjectsBaseDir -ChildPath $ProjectName
+    $NewProjectPath = Join-Path -Path $ProjectsRootDir -ChildPath $ProjectName
 
     # --- Resolve Optional Paths ---
     # Resolve the requirements path BEFORE changing directory to avoid ambiguity with relative paths.
@@ -149,7 +153,7 @@ function New-PyProject {
         return
     }
 
-    Write-Host "Setting up new Python project: $ProjectName" -ForegroundColor Green
+    if (-not $Quiet) { Write-Host "Setting up new Python project: $ProjectName" -ForegroundColor Green }
 
     # Create the project directory and navigate into it
     New-Item -ItemType Directory -Path $NewProjectPath | Out-Null
@@ -161,7 +165,9 @@ function New-PyProject {
     private:Invoke-CommandOrThrow -Command "git" -Arguments "branch", "-M", "main" -ErrorMessage "Failed to rename default branch to 'main'."
 
     # Copy the standard Python .gitignore file from the templates folder in $PSScriptRoot (root folder for PROFILE)
-    $GitignoreTemplatePath = Join-Path -Path $PSScriptRoot -ChildPath "templates\.gitignore_python"
+    $functionFile = (Get-Command New-PyProject).Source
+    $profileRoot = Split-Path -Path (Split-Path -Path $functionFile -Parent) -Parent # This line was corrected in a previous step, including it for context.
+    $GitignoreTemplatePath = Join-Path -Path $profileRoot -ChildPath "templates\.gitignore_python"
     if (Test-Path $GitignoreTemplatePath) {
         Copy-Item -Path $GitignoreTemplatePath -Destination .\.gitignore
     }
