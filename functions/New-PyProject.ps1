@@ -16,7 +16,7 @@
     Must match a key in the $global:ProjectTypeRoots hashtable (e.g., 'Personal', 'Work').
 
 .PARAMETER GitHub
-    Optional. Specify 'public' or 'private' to create a new GitHub repo with an MIT license,
+    Optional. Specify 'public' or 'private' to create a new GitHub repo,
     or provide a full remote URL (e.g., 'git@github.com:user/repo.git') to link an existing repo.
 
 .PARAMETER OpenInCode
@@ -69,6 +69,7 @@ function private:Invoke-CommandOrThrow {
         Remove-Item $stdErrFile -ErrorAction SilentlyContinue
     }
 }
+
 
 function New-PyProject {
     [CmdletBinding()]
@@ -159,14 +160,25 @@ function New-PyProject {
     New-Item -ItemType Directory -Path $NewProjectPath | Out-Null
     Set-Location $NewProjectPath
 
+    # Create subdirectories
+    Write-Host "-> Creating subdirectories..."
+    @("scripts", "output", "data", "notebooks") | ForEach-Object { New-Item -ItemType Directory -Name $_ } | Out-Null
+    Write-Host "-> Subdirectories created successfully"
+
+    # Create README.md
+    Write-Host "-> Creating README.md..."
+    # Creates a simple README with the project name as a level 1 heading.
+    "# $ProjectName" | Out-File -FilePath "README.md" -Encoding utf8
     # --- Git Setup ---
+    # Get the profile root path to find template files
+    $functionFile = (Get-Command New-PyProject).Source
+    $profileRoot = Split-Path -Path (Split-Path -Path $functionFile -Parent) -Parent
+
     Write-Host "-> Initializing Git repository and creating .gitignore..."
     private:Invoke-CommandOrThrow -Command "git" -Arguments "init" -ErrorMessage "Failed to initialize Git repository."
     private:Invoke-CommandOrThrow -Command "git" -Arguments "branch", "-M", "main" -ErrorMessage "Failed to rename default branch to 'main'."
 
-    # Copy the standard Python .gitignore file from the templates folder in $PSScriptRoot (root folder for PROFILE)
-    $functionFile = (Get-Command New-PyProject).Source
-    $profileRoot = Split-Path -Path (Split-Path -Path $functionFile -Parent) -Parent
+    # Copy the standard Python .gitignore file from the templates folder in root folder of root folder for New-PyProject.ps1 
     $GitignoreTemplatePath = Join-Path -Path $profileRoot -ChildPath "templates\.gitignore_python"
     if (Test-Path $GitignoreTemplatePath) {
         Copy-Item -Path $GitignoreTemplatePath -Destination .\.gitignore
@@ -175,6 +187,16 @@ function New-PyProject {
         Write-Warning "Could not find .gitignore template at '$GitignoreTemplatePath'. Creating a minimal .gitignore file."
         # Create a basic .gitignore to at least ignore the venv folder
         ".venv/" | Out-File -FilePath .\.gitignore -Encoding utf8
+    }
+
+    # Insert MIT LICENSE
+    Write-Host "-> Inserting MIT License..."
+    $LicenseTemplatePath = Join-Path -Path $profileRoot -ChildPath "LICENSE"
+    if (Test-Path $LicenseTemplatePath) {
+        Copy-Item -Path $LicenseTemplatePath -Destination "LICENSE"
+    }
+    else {
+        Write-Warning "Could not find LICENSE template at '$LicenseTemplatePath'."
     }
 
     # --- venv Setup ---
@@ -208,11 +230,6 @@ function New-PyProject {
         $VenvPython = Join-Path -Path $NewProjectPath -ChildPath ".venv\Scripts\python.exe"
         private:Invoke-CommandOrThrow -Command $VenvPython -Arguments "-m", "pip", "install", "-r", $resolvedRequirementsPath.Path -ErrorMessage "Failed to install dependencies from '$($resolvedRequirementsPath.Path)'. Please check the file contents and your network connection."
     }
-
-    # --- README Generation ---
-    Write-Host "-> Creating README.md..."
-    # Creates a simple README with the project name as a level 1 heading.
-    "# $ProjectName" | Out-File -FilePath "README.md" -Encoding utf8
 
     # --- Initial Commit and Remote ---
     Write-Host "-> Staging files for initial commit..."
