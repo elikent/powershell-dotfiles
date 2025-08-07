@@ -211,7 +211,7 @@ function New-PyProject {
     # --- Initial Commit and Remote ---
     Write-Host "-> Staging files for initial commit..."
     private:Invoke-CommandOrThrow -Command "git" -Arguments "add", "." -ErrorMessage "Failed to stage files with 'git add'."
-    private:Invoke-CommandOrThrow -Command "git" -Arguments "commit", "-m", "'Initial commit: project structure and venv setup'" -ErrorMessage "Failed to create initial commit. Is your git user.name and user.email configured?"
+    private:Invoke-CommandOrThrow -Command "git" -Arguments "commit", "-m", "Initial commit: project structure and venv setup" -ErrorMessage "Failed to create initial commit. Is your git user.name and user.email configured?"
 
     if ($PSBoundParameters.ContainsKey('GitHub')) {
         if ($GitHub -in @('public', 'private')) {
