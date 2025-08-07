@@ -67,6 +67,29 @@ function script:Invoke-CommandOrThrow {
     }
 }
 
+# Internal helper function to create a dynamic LICENSE file from a template.
+function script:New-LicenseFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProfileRoot
+    )
+
+    Write-Verbose "Creating dynamic LICENSE file..."
+    $LicenseTemplatePath = Join-Path -Path $ProfileRoot -ChildPath "templates\LICENSE_template"
+
+    if (-not (Test-Path $LicenseTemplatePath)) {
+        Write-Warning "LICENSE template not found at '$LicenseTemplatePath'. Skipping license creation."
+        return
+    }
+
+    # Use a global variable for the copyright holder for easy configuration in the user's profile.
+    $copyrightHolder = if ($global:GitAuthorName) { $global:GitAuthorName } else { "Your Name" }
+    $currentYear = Get-Date -Format "yyyy"
+
+    (Get-Content $LicenseTemplatePath -Raw) -replace '\{YEAR\}', $currentYear -replace '\{COPYRIGHT_HOLDER\}', $copyrightHolder | Out-File -FilePath "LICENSE" -Encoding utf8
+    Write-Verbose "LICENSE file created successfully for '$copyrightHolder' ($currentYear)."
+}
+
 
 function New-PyProject {
     [CmdletBinding()]
@@ -194,16 +217,8 @@ function New-PyProject {
         ".venv/" | Out-File -FilePath .\.gitignore -Encoding utf8
     }
 
-    # Insert MIT LICENSE
-    Write-Verbose "Inserting MIT License..."
-    $LicenseTemplatePath = Join-Path -Path $profileRoot -ChildPath "LICENSE"
-    if (Test-Path $LicenseTemplatePath) {
-        Copy-Item -Path $LicenseTemplatePath -Destination "LICENSE"
-    }
-    else {
-        Write-Warning "Could not find LICENSE template at '$LicenseTemplatePath'."
-    }
-
+    # Create the LICENSE file using the helper function
+    script:New-LicenseFile -ProfileRoot $profileRoot
     # --- venv Setup ---
     # Determine which Python version to use and pin it.
     # get versionToUse from value of PythonVersion key in PSBoundParameters if exists. else get from pyenv global. 
@@ -243,9 +258,13 @@ function New-PyProject {
 
     if ($PSBoundParameters.ContainsKey('GitHub')) {
         if ($GitHub -in @('public', 'private')) {
-            Write-Verbose "Creating new $GitHub GitHub repository '$ProjectName' with MIT license and setting remote..."
-            # The 'gh' command will create the repo and add the 'origin' remote.
-            script:Invoke-CommandOrThrow -Command "gh" -Arguments "repo", "create", $ProjectName, "--$GitHub", "--license", "mit", "--source=.", "--remote=origin" -ErrorMessage "Failed to create GitHub repository with 'gh'. Is the GitHub CLI authenticated? (run 'gh auth login')"
+            Write-Verbose "Creating new $GitHub GitHub repository '$ProjectName' and setting remote..."
+            # Create the empty repo on GitHub and add the 'origin' remote. The '--source' flag is removed
+            # to make the subsequent push explicit and more reliable.
+            script:Invoke-CommandOrThrow -Command "gh" -Arguments "repo", "create", $ProjectName, "--$GitHub", "--remote=origin" -ErrorMessage "Failed to create GitHub repository with 'gh'. Is the GitHub CLI authenticated? (run 'gh auth login')"
+
+            Write-Verbose "Pushing initial commit to 'origin'..."
+            script:Invoke-CommandOrThrow -Command "git" -Arguments "push", "-u", "origin", "main" -ErrorMessage "Failed to push initial commit to GitHub."
         }
         else {
             # The value is a URL, so we add it as a remote
@@ -258,8 +277,12 @@ function New-PyProject {
     Write-Host "`nProject '$ProjectName' created successfully!" -ForegroundColor Green
     Write-Host "Next steps:"
     Write-Host "1. Activate your venv: " -NoNewline; Write-Host ".\.venv\Scripts\Activate.ps1" -ForegroundColor Yellow
+    # Suggest pushing only when the user provided an existing remote URL, as the script
+    # now handles the initial push automatically when creating a new repository.
     if ($PSBoundParameters.ContainsKey('GitHub')) {
-        Write-Host "2. Push to GitHub: " -NoNewline; Write-Host "git push -u origin main" -ForegroundColor Yellow
+        if ($GitHub -notmatch '^(public|private)$') {
+            Write-Host "2. Push to GitHub: " -NoNewline; Write-Host "git push -u origin main" -ForegroundColor Yellow
+        }
     }
 
     # --- Open in VS Code if requested ---
