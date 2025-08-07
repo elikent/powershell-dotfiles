@@ -153,7 +153,7 @@ function New-PyProject {
         return
     }
 
-    if (-not $Quiet) { Write-Host "Setting up new Python project: $ProjectName" -ForegroundColor Green }
+    Write-Host "Setting up new Python project: $ProjectName" -ForegroundColor Green
 
     # Create the project directory and navigate into it
     New-Item -ItemType Directory -Path $NewProjectPath | Out-Null
