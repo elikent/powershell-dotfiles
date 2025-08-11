@@ -3,8 +3,8 @@
 # They rely on global variables defined in the main profile.
  
 # Internal helper function to avoid repeating the Test-Path/Set-Location logic.
-# The 'private:' scope is a convention to indicate it's not for direct use.
-function private:Invoke-SetLocation {
+# The 'script:' scope is a convention to indicate it's not for direct use.
+function script:Invoke-SetLocation {
     param([string]$Path)
  
     if (Test-Path -Path $Path -PathType Container) {
@@ -16,13 +16,13 @@ function private:Invoke-SetLocation {
 }
  
 function Set-LocationToDownloads {
-    private:Invoke-SetLocation -Path (Join-Path $HOME "Downloads")
+    script:Invoke-SetLocation -Path (Join-Path $HOME "Downloads")
 }
 function Set-LocationToPersonalProjects {
-    private:Invoke-SetLocation -Path $global:ProjectTypeRoots.Personal
+    script:Invoke-SetLocation -Path $global:ProjectTypeRoots.Personal
 }
 function Set-LocationToWorkProjects {
-    private:Invoke-SetLocation -Path $global:ProjectTypeRoots.Work
+    script:Invoke-SetLocation -Path $global:ProjectTypeRoots.Work
 }
 
 # A dynamic function to navigate to any project by name.

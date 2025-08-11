@@ -83,7 +83,15 @@ function script:New-LicenseFile {
     }
 
     # Use a global variable for the copyright holder for easy configuration in the user's profile.
-    $copyrightHolder = if ($global:GitAuthorName) { $global:GitAuthorName } else { "Your Name" }
+    # Priority: 1. $global:GitAuthorName, 2. git config user.name, 3. Fallback string.
+    $copyrightHolder = $global:GitAuthorName
+    if (-not $copyrightHolder) {
+        # If the global var isn't set, try to get it from the git config.
+        $gitUserName = (git config user.name).Trim()
+        if ($gitUserName) {
+            $copyrightHolder = $gitUserName
+        } else { $copyrightHolder = "Your Name" } # Fallback if all else fails
+    }
     $currentYear = Get-Date -Format "yyyy"
 
     (Get-Content $LicenseTemplatePath -Raw) -replace '\{YEAR\}', $currentYear -replace '\{COPYRIGHT_HOLDER\}', $copyrightHolder | Out-File -FilePath "LICENSE" -Encoding utf8
