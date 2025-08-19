@@ -1,11 +1,11 @@
 
 <#
 .SYNOPSIS
-    Sets standard branch protection rules for the 'main' branch of a GitHub repository.
+    Sets standard branch protection rules for the specified branch of a GitHub repository.
 
 .DESCRIPTION
     This function uses the 'gh' CLI to apply a standard set of branch protections
-    to the 'main' branch of a specified repository. These protections are ideal for
+    to the specified branch of a specified repository. If no branch is specified, protections are applied to "main". These protections are ideal for
     solo developers who want to enforce a pull-request-based workflow.
 
     The following rules are applied:
@@ -17,6 +17,9 @@
 
 .PARAMETER RepoName
     The name of the GitHub repository (e.g., "my-cool-project").
+
+.PARAMETER BranchName
+    The name of the branch to protect. Defaults to "main".
 
 .EXAMPLE
     Set-GitHubBranchProtection -UserName "elikent" -RepoName "my-cool-project"
@@ -30,7 +33,10 @@ function Set-GitHubBranchProtection {
         [string]$UserName,
 
         [Parameter(Mandatory = $true, HelpMessage = "The name of the repository.")]
-        [string]$RepoName
+        [string]$RepoName,
+
+        [Parameter(Mandatory = $false, HelpMessage = "The name of the branch to protect. Defaults to 'main'.")]
+        [string]$BranchName = "main"
     )
 
     # Dot-source the reusable helper function for command execution.
@@ -45,10 +51,10 @@ function Set-GitHubBranchProtection {
     }
 
     # --- Apply Branch Protections ---
-    Write-Host "Applying branch protections to '$UserName/$RepoName' on branch 'main'..."
+    Write-Host "Applying branch protections to '$UserName/$RepoName' on branch '$BranchName'..."
 
     # Define the API endpoint and the arguments for the gh command
-    $apiEndpoint = "repos/$UserName/$RepoName/branches/main/protection"
+    $apiEndpoint = "repos/$UserName/$RepoName/branches/$BranchName/protection"
     $ghArguments = @(
         "api",
         "--method", "PUT",

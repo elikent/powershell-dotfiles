@@ -1,3 +1,21 @@
+# MINE
+# Data
+data/
+!data/.gitkeep
+# data_samples/# (intentionally not ignored)
+
+# Outputs
+output/
+!output/.gitkeep
+artifacts/
+
+# Secrets
+config/secrets/
+
+# Test scripts
+tests/
+
+# INHERITED
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

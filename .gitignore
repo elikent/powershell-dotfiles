@@ -1,15 +1,31 @@
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# PowerShell history
-*PSReadline.txt
+# PowerShell history files
+*History.txt
+*ConsoleHost_history.txt
 
 # PowerShell module analysis cache
-PSModuleAnalysisCache/
+*.psd1.cat
 
-# User-defined module directory
-Modules/
+# Local module installations (e.g., in a 'Modules' subfolder)
+# Keep the manifest but ignore the actual module content.
+**/Modules/*
+!**/Modules/modules.psd1
+
+# Pester test results
+*.Test.xml
+
+# Visual Studio Code settings
+.vscode/
+
+# User-specific settings
+*.user
+*.suo
+
+# Build artifacts
+**/bin/
+**/obj/
+
+# Credentials and other sensitive files
+*.cred
+*.secrets
+*secret*.json
+*key*.json
