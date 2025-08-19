@@ -58,15 +58,17 @@ function Set-GitHubBranchProtection {
     $ghArguments = @(
         "api",
         "--method", "PUT",
+        # Explicitly set the API version header, which is good practice.
+        "-H", "Accept: application/vnd.github+json",
         $apiEndpoint,
         # Require at least one approving review on pull requests
         # Setting this to 0 allows a solo developer to merge their own PRs.
-        "-f", "required_pull_request_reviews[required_approving_review_count]=0",
+        "-F", "required_pull_request_reviews[required_approving_review_count]=0",
         # Enforce protections for administrators
-        "-f", "enforce_admins=true",
+        "-F", "enforce_admins=true",
         # These must be set to null to avoid errors if they aren't configured
-        "-f", "required_status_checks=null",
-        "-f", "restrictions=null"
+        "-F", "required_status_checks=null",
+        "-F", "restrictions=null"
     )
 
     Invoke-CommandOrThrow -Command "gh" -Arguments $ghArguments -ErrorMessage "Failed to apply branch protections. Ensure the repo exists and you have admin permissions."
