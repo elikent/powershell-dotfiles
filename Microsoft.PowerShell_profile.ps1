@@ -53,3 +53,5 @@ $global:ProjectTypeRoots = @{
 # This keeps the main profile clean and focused on configuration.
 . "$PSScriptRoot\profile_components\navigation.ps1"
 . "$PSScriptRoot\functions\New-PyProject.ps1"
+. "$PSScriptRoot\functions\Set-GitHubBranchProtection.ps1"
+

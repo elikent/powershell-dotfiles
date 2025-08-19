@@ -40,33 +40,6 @@
 
 #>
 
-# Internal helper function to execute external commands and throw a terminating error on failure.
-# This simplifies error handling in the main function body.
-function script:Invoke-CommandOrThrow {
-    # parameters = mandatory command (eg git, pyenv), optional arguments, and mandatory error message
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Command,
-        [object[]]$Arguments,
-        [Parameter(Mandatory = $true)]
-        [string]$ErrorMessage
-    )
-    $stdErrFile = [System.IO.Path]::GetTempFileName()
-    try {
-        # Execute the command, redirecting the standard error stream (2) to a temporary file.
-        & $Command $Arguments 2> $stdErrFile
-        # if last exit code was not 0, error thrown
-        if ($LASTEXITCODE -ne 0) {
-            $stdErrOutput = Get-Content $stdErrFile | Out-String
-            # Using 'throw' creates a terminating error, stopping the script immediately.
-            throw "ERROR: $ErrorMessage`nDetails: $stdErrOutput"
-        }
-    }
-    finally {
-        Remove-Item $stdErrFile -ErrorAction SilentlyContinue
-    }
-}
-
 # Internal helper function to create a dynamic LICENSE file from a template.
 function script:New-LicenseFile {
     param(
@@ -144,6 +117,9 @@ function New-PyProject {
         [string]$Requirements
     )
 
+    # Dot-source the reusable helper function for command execution.
+    . (Join-Path $PSScriptRoot 'Invoke-CommandOrThrow.ps1')
+
     # --- Pre-flight Check for Global Configuration ---
     # This check runs when the function is called, not when the script is loaded, making it more robust.
     if (-not $global:ProjectTypeRoots -is [hashtable] -or $global:ProjectTypeRoots.Count -eq 0) {
@@ -211,8 +187,8 @@ function New-PyProject {
 
 
     Write-Verbose "Initializing Git repository and creating .gitignore..."
-    script:Invoke-CommandOrThrow -Command "git" -Arguments "init" -ErrorMessage "Failed to initialize Git repository."
-    script:Invoke-CommandOrThrow -Command "git" -Arguments "branch", "-M", "main" -ErrorMessage "Failed to rename default branch to 'main'."
+    Invoke-CommandOrThrow -Command "git" -Arguments "init" -ErrorMessage "Failed to initialize Git repository."
+    Invoke-CommandOrThrow -Command "git" -Arguments "branch", "-M", "main" -ErrorMessage "Failed to rename default branch to 'main'."
 
     # Copy the standard Python .gitignore file from the templates folder in root folder of root folder for New-PyProject.ps1 
     $GitignoreTemplatePath = Join-Path -Path $profileRoot -ChildPath "templates\.gitignore_python"
@@ -244,40 +220,40 @@ function New-PyProject {
     # Set pyenv local
     # pyenv local then 1) checks its own inventory to see if $VersionToUse is installed and
     # 2) creates the .python-version file which tells pyenv and future users which version to use for project.
-    script:Invoke-CommandOrThrow -Command "pyenv" -Arguments "local", $VersionToUse -ErrorMessage "pyenv failed to set version '$VersionToUse'. Is it installed? (e.g., 'pyenv install $VersionToUse')"
+    Invoke-CommandOrThrow -Command "pyenv" -Arguments "local", $VersionToUse -ErrorMessage "pyenv failed to set version '$VersionToUse'. Is it installed? (e.g., 'pyenv install $VersionToUse')"
 
     # All above worked. report.
     Write-Verbose "Creating Python virtual environment (.venv) with Python $VersionToUse..."
     # Create venv with specified python version
-    script:Invoke-CommandOrThrow -Command "python" -Arguments "-m", "venv", ".venv" -ErrorMessage "Failed to create the Python virtual environment (.venv). Please check your Python installation."
+    Invoke-CommandOrThrow -Command "python" -Arguments "-m", "venv", ".venv" -ErrorMessage "Failed to create the Python virtual environment (.venv). Please check your Python installation."
 
     # --- Initial Dependency Installation ---
     if ($resolvedRequirementsPath) {
         Write-Verbose "Installing dependencies from '$($resolvedRequirementsPath.Path)'..."
         # Set $VenvPython as python.exe installed in venv and Directly use to run pip
         $VenvPython = Join-Path -Path $NewProjectPath -ChildPath ".venv\Scripts\python.exe"
-        script:Invoke-CommandOrThrow -Command $VenvPython -Arguments "-m", "pip", "install", "-r", $resolvedRequirementsPath.Path -ErrorMessage "Failed to install dependencies from '$($resolvedRequirementsPath.Path)'. Please check the file contents and your network connection."
+        Invoke-CommandOrThrow -Command $VenvPython -Arguments "-m", "pip", "install", "-r", $resolvedRequirementsPath.Path -ErrorMessage "Failed to install dependencies from '$($resolvedRequirementsPath.Path)'. Please check the file contents and your network connection."
     }
 
     # --- Initial Commit and Remote ---
     Write-Verbose "Staging files for initial commit..."
-    script:Invoke-CommandOrThrow -Command "git" -Arguments "add", "." -ErrorMessage "Failed to stage files with 'git add'."
-    script:Invoke-CommandOrThrow -Command "git" -Arguments "commit", "-m", "Initial commit: project structure and venv setup" -ErrorMessage "Failed to create initial commit. Is your git user.name and user.email configured?"
+    Invoke-CommandOrThrow -Command "git" -Arguments "add", "." -ErrorMessage "Failed to stage files with 'git add'."
+    Invoke-CommandOrThrow -Command "git" -Arguments "commit", "-m", "Initial commit: project structure and venv setup" -ErrorMessage "Failed to create initial commit. Is your git user.name and user.email configured?"
 
     if ($PSBoundParameters.ContainsKey('GitHub')) {
         if ($GitHub -in @('public', 'private')) {
             Write-Verbose "Creating new $GitHub GitHub repository '$ProjectName' and setting remote..."
             # Create the empty repo on GitHub and add the 'origin' remote. The '--source' flag is removed
             # to make the subsequent push explicit and more reliable.
-            script:Invoke-CommandOrThrow -Command "gh" -Arguments "repo", "create", $ProjectName, "--$GitHub", "--remote=origin" -ErrorMessage "Failed to create GitHub repository with 'gh'. Is the GitHub CLI authenticated? (run 'gh auth login')"
+            Invoke-CommandOrThrow -Command "gh" -Arguments "repo", "create", $ProjectName, "--$GitHub", "--remote=origin" -ErrorMessage "Failed to create GitHub repository with 'gh'. Is the GitHub CLI authenticated? (run 'gh auth login')"
 
             Write-Verbose "Pushing initial commit to 'origin'..."
-            script:Invoke-CommandOrThrow -Command "git" -Arguments "push", "-u", "origin", "main" -ErrorMessage "Failed to push initial commit to GitHub."
+            Invoke-CommandOrThrow -Command "git" -Arguments "push", "-u", "origin", "main" -ErrorMessage "Failed to push initial commit to GitHub."
         }
         else {
             # The value is a URL, so we add it as a remote
             Write-Verbose "Adding GitHub remote: $GitHub"
-            script:Invoke-CommandOrThrow -Command "git" -Arguments "remote", "add", "origin", $GitHub -ErrorMessage "Failed to add GitHub remote."
+            Invoke-CommandOrThrow -Command "git" -Arguments "remote", "add", "origin", $GitHub -ErrorMessage "Failed to add GitHub remote."
         }
     }
 
